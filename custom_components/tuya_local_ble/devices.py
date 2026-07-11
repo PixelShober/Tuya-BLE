@@ -205,6 +205,10 @@ devices_database: dict[str, TuyaBLECategoryInfo] = {
             TuyaBLEProductInfo(
                 name="Raykube A1 Ultra",
             ),
+            "laxpwq3g":  # GJ-635APP+KEY
+            TuyaBLEProductInfo(
+                name="GJ-635APP+KEY",
+            ),
         },
     ),    
     "szjqr": TuyaBLECategoryInfo(

@@ -219,6 +219,17 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                     ],
                 ),
             ],
+            "laxpwq3g": [  # GJ-635APP+KEY
+                TuyaBLEBatteryMapping(dp_id=8),
+                TuyaBLESensorMapping(
+                    dp_id=19,
+                    description=SensorEntityDescription(
+                        key="unlock_ble",
+                        icon="mdi:lock-open-variant-outline",
+                        entity_category=EntityCategory.DIAGNOSTIC,
+                    ),
+                ),
+            ],
         }
     ),      
     "szjqr": TuyaBLECategorySensorMapping(

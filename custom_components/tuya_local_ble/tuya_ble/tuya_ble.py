@@ -1586,6 +1586,11 @@ class TuyaBLEDevice:
 
     async def _send_datapoints(self, datapoint_ids: list[int]) -> None:
         """Send new values of datapoints to the device."""
+        if self.product_id == "laxpwq3g" and set(datapoint_ids).issubset({71}):
+            # GJ-635 advertises the A201 service and uses the legacy DP command
+            # envelope even though its lock command is a structured RAW value.
+            await self._send_datapoints_v3(datapoint_ids)
+            return
         if self.product_id == "hc7n0urm" and 6 in datapoint_ids:
             # This battery lock may be disconnected after Home Assistant startup,
             # so protocol_version can still be unknown here. The Raykube V4 path

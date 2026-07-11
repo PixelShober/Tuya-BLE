@@ -134,6 +134,12 @@
       <td>Experimental TuyaOS FD50 local BLE remote unlock support. See <a href="docs/raykube-a1-ultra-fd50.md">protocol notes</a>.</td>
     </tr>
     <tr>
+      <td>Smart Locks<br>(jtmspro)</td>
+      <td>GJ-635APP+KEY</td>
+      <td>'laxpwq3g'</td>
+      <td>Experimental A201 support for local battery reporting and structured DP 71 lock commands. See <a href="docs/gj635-laxpwq3g.md">protocol notes</a>.</td>
+    </tr>
+    <tr>
       <td>Climate<br>(wk)</td>
       <td>Thermostatic Radiator Valve</td>
       <td>'drlajpqc', 'nhj2j7su'</td>

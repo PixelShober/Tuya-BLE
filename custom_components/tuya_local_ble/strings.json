@@ -134,6 +134,9 @@
       "residual_electricity": {
           "name": "Battery"
       },
+      "unlock_ble": {
+          "name": "Bluetooth unlock record"
+      },
       "alarm_lock": {
           "name": "Alarm"
       },

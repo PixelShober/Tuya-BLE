@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import logging
-from typing import Callable
+from typing import Any, Callable
 from datetime import datetime, timedelta
 from threading import Timer
 import time
@@ -25,13 +25,22 @@ from homeassistant.const import (
 
 from .const import DOMAIN
 from .devices import TuyaBLEData, TuyaBLEEntity, TuyaBLEProductInfo
+from .lock_protocol import build_accessory_lock_payload
 from .tuya_ble import TuyaBLEDataPointType, TuyaBLEDevice
+from .tuya_ble.exceptions import TuyaBLEDeviceError
 
 _LOGGER = logging.getLogger(__name__)
 
 TuyaBLELockIsAvailable = Callable[["TuyaBLELock", TuyaBLEProductInfo], bool] | None
+TuyaBLELockCommandBuilder = Callable[[TuyaBLEDevice, bool], bytes]
 
-from typing import Any
+
+def _build_gj635_command(device: TuyaBLEDevice, unlock: bool) -> bytes:
+    """Build a GJ-635 DP 71 command without replaying a captured packet."""
+    try:
+        return build_accessory_lock_payload(device.ble_unlock_check, unlock=unlock)
+    except ValueError as exc:
+        raise TuyaBLEDeviceError(1) from exc
 
 @dataclass
 class TuyaBLELockMapping:
@@ -40,21 +49,17 @@ class TuyaBLELockMapping:
     dp_id_unlock: int
     dp_id_nop: int
     keep_connect_timer: int
-    description: LockEntityDescription
-    force_add: bool = True
-    keep_connect: bool = False
-    dp_type: TuyaBLEDataPointType | None = None
-    is_available: TuyaBLELockIsAvailable = None
-
-@dataclass
-class TuyaBLELockMapping(TuyaBLELockMapping):
     description: LockEntityDescription = field(
         default_factory=lambda: LockEntityDescription(
             key="push",
             translation_key="push",
         )
     )
-    is_available: TuyaBLELockIsAvailable = 0
+    force_add: bool = True
+    keep_connect: bool = False
+    dp_type: TuyaBLEDataPointType | None = None
+    is_available: TuyaBLELockIsAvailable = None
+    command_builder: TuyaBLELockCommandBuilder | None = None
 
 @dataclass
 class TuyaBLECategoryLockMapping:
@@ -94,6 +99,22 @@ mapping: dict[str, TuyaBLECategoryLockMapping] = {
                     keep_connect_timer=60,
                     description=LockEntityDescription(
                         key="manual_lock"
+                    ),
+                ),
+            ],
+            "laxpwq3g": [  # GJ-635APP+KEY
+                TuyaBLELockMapping(
+                    dp_id_unlock=71,
+                    dp_id_lock=71,
+                    # DP 19 is an unlock event, not a persistent lock state.
+                    dp_id=19,
+                    dp_id_nop=70,
+                    keep_connect=False,
+                    keep_connect_timer=60,
+                    command_builder=_build_gj635_command,
+                    description=LockEntityDescription(
+                        key="manual_lock",
+                        entity_registry_enabled_default=False,
                     ),
                 ),
             ],
@@ -186,10 +207,11 @@ class TuyaBLELock(TuyaBLEEntity, LockEntity):
     def should_poll(self) -> bool: return False
 
     def _update_attrs(self) -> None:
+        is_locked = self.is_locked
         self._attr_is_locking = self.is_locking
         self._attr_is_unlocking = self.is_unlocking
-        self._attr_is_locked = self.is_locked
-        self._attr_is_unlocked = not self.is_locked
+        self._attr_is_locked = is_locked
+        self._attr_is_unlocked = None if is_locked is None else not is_locked
         self._attr_is_jammed = self.is_jammed
         self._attr_changed_by = super().changed_by
 
@@ -210,6 +232,24 @@ class TuyaBLELock(TuyaBLEEntity, LockEntity):
             dp_id = self._mapping.dp_id_unlock
         else:
             dp_id = self._mapping.dp_id_lock
+
+        if self._mapping.command_builder is not None:
+            payload = self._mapping.command_builder(
+                self._device,
+                self._target_state == LockState.UNLOCKED,
+            )
+            datapoint = self._device.datapoints.get_or_create(
+                dp_id,
+                TuyaBLEDataPointType.DT_RAW,
+                b"",
+            )
+            await datapoint.set_value(payload)
+            self._current_state = self._target_state
+            self._commanded = False
+            self._isjammed = False
+            self._update_attrs()
+            self.async_write_ha_state()
+            return
 
         datapoint = self._device.datapoints.get_or_create(
             dp_id,
@@ -243,6 +283,14 @@ class TuyaBLELock(TuyaBLEEntity, LockEntity):
 
     def update_device_state(self):
         datapoint = self._device.datapoints[self._mapping.dp_id]
+        if self._mapping.command_builder is not None:
+            if datapoint and datapoint.changed_by_device:
+                # DP 19 reports a completed BLE unlock event. The lock does not
+                # expose a persistent bolt state in the confirmed data model.
+                self._current_state = LockState.UNLOCKED
+                self._commanded = False
+                self._isjammed = False
+            return
         if datapoint:
             if datapoint.value:
                 self._current_state = LockState.UNLOCKED
@@ -266,6 +314,8 @@ class TuyaBLELock(TuyaBLEEntity, LockEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
+        if self._mapping.command_builder is not None:
+            return bool(self._device.ble_unlock_check)
         if self._device.product_id == "hc7n0urm":
             # Battery locks sleep and may not keep an active BLE connection between
             # commands. Allow Home Assistant to call unlock; the command path will
