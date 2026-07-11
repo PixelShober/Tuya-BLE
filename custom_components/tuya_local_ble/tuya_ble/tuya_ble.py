@@ -39,6 +39,7 @@ from .exceptions import (
     TuyaBLEDeviceError,
     TuyaBLEEnumValueError,
 )
+from .handshake import device_info_payload
 from .manager import AbstaractTuyaBLEDeviceManager, TuyaBLEDeviceCredentials
 
 _LOGGER = logging.getLogger(__name__)
@@ -627,12 +628,9 @@ class TuyaBLEDevice:
                     _LOGGER.debug(
                         "%s: Sending device info request", self.address)
                     try:
-                        device_info_payload = (
-                            b"\x00\xf3" if self.product_id == "hc7n0urm" else bytes(0)
-                        )
                         if not await self._send_packet_while_connected(
                             TuyaBLECode.FUN_SENDER_DEVICE_INFO,
-                            device_info_payload,
+                            device_info_payload(self.product_id),
                             0,
                             True,
                         ):
