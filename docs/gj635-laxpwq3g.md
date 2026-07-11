@@ -28,6 +28,20 @@ does not replay a captured unlock packet.
 
 Reference: [Tuya Bluetooth lock data point reference](https://developer.tuya.com/en/docs/iot/ble?id=K9ow3vcpn71ua)
 
+## Connection status
+
+The advertised protocol marker is V3. Live tests through an ESPHome Bluetooth
+proxy confirmed that the lock accepts a GATT connection at about `-74 dBm`.
+The product-specific `DEVICE_INFO` request uses the login key, payload `00 14`,
+and a 50 ms delay between fragmented writes. Connected response waits are
+limited to eight seconds and initial setup stops after three attempts.
+
+An untouched, sleeping lock accepted the GATT connection but did not send a
+protocol notification in response. A supervised test with the keypad or
+fingerprint sensor awake is still required before battery data or commands can
+be validated. A V4 frame-header probe also received no response and was not
+retained.
+
 ## Required `devices.json` fields
 
 ```json
