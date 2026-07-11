@@ -79,6 +79,38 @@ What this leaves:
   so it is a healthy BLE-only device with no always-on gateway; its radio only
   wakes for a short window on physical interaction.
 
+## Notify probe and handshake comparison (2026-07-11)
+
+A diagnostic that connects, subscribes and idles was run three times while the
+lock was physically operated inside the listening window (confirmed operation
+until 20:47:35 during the 20:47:26–20:47:53 window). Every run behaved the same:
+
+- The lock accepts the connection, then disconnects itself after ~25 s of an
+  idle link. It does not tolerate a connection without a prompt valid handshake.
+- No notification ever arrived on `2b10`, not even while the lock was being
+  operated. The lock therefore appears to emit nothing before its session is
+  authenticated, so the notify probe cannot by itself separate a broken notify
+  path from a lock that stays mute pre-auth.
+
+The `DEVICE_INFO` handshake is confirmed identical to the working reference.
+ShonP40/Tuya-BLE drives the A1 Pro Max (`rlyxv7pe`, also `jtmspro`) with the
+same service UUID `0000a201`, the same `2b10`/`2b11` characteristics, and the
+same empty-payload standard `DEVICE_INFO` followed by `PAIR` — with no
+per-product special case (its product entry is only `name="A1 PRO MAX"`). Our
+connect flow shares that upstream commit. That lock replies to those exact
+bytes; the GJ-635 does not. The silence is a device/firmware difference, not a
+code gap that copying a working integration can close.
+
+## Only remaining avenue: capture a real handshake
+
+The GJ-635 (`laxpwq3g`) is not covered by any published integration, and it does
+not answer the handshake that a sibling `jtmspro` lock accepts. The definitive
+next step is to capture what this specific lock actually expects: enable the
+Android HCI snoop log, open the Smart Life / Tuya app next to the lock, let it
+connect and unlock over BLE, then pull `btsnoop_hci.log` and inspect the frames
+it writes to `2b11` and the notifications it receives on `2b10`. That shows the
+real handshake for this firmware; everything short of it is guesswork.
+
 ## Deployment trap
 
 The integration is installed through HACS from `PixelShober/Tuya-BLE`, and the
