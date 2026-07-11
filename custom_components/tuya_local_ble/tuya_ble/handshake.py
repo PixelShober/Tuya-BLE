@@ -10,3 +10,13 @@ def device_info_payload(product_id: str) -> bytes:
     if product_id == "laxpwq3g":
         return b"\x00\x14"
     return bytes(0)
+
+
+def connection_attempts(product_id: str) -> int:
+    """Return the maximum initial connection attempts for a product."""
+    return 3 if product_id == "laxpwq3g" else 100
+
+
+def packet_write_delay(product_id: str) -> float:
+    """Return the delay between fragmented GATT writes for a product."""
+    return 0.05 if product_id == "laxpwq3g" else 0

@@ -30,6 +30,14 @@ class DeviceInfoPayloadTest(unittest.TestCase):
     def test_other_products_keep_empty_payload(self) -> None:
         self.assertEqual(handshake.device_info_payload("other"), bytes(0))
 
+    def test_gj635_uses_bounded_delayed_connection(self) -> None:
+        self.assertEqual(handshake.connection_attempts("laxpwq3g"), 3)
+        self.assertEqual(handshake.packet_write_delay("laxpwq3g"), 0.05)
+
+    def test_other_products_preserve_connection_behavior(self) -> None:
+        self.assertEqual(handshake.connection_attempts("other"), 100)
+        self.assertEqual(handshake.packet_write_delay("other"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -39,7 +39,7 @@ from .exceptions import (
     TuyaBLEDeviceError,
     TuyaBLEEnumValueError,
 )
-from .handshake import device_info_payload
+from .handshake import connection_attempts, device_info_payload, packet_write_delay
 from .manager import AbstaractTuyaBLEDeviceManager, TuyaBLEDeviceCredentials
 
 _LOGGER = logging.getLogger(__name__)
@@ -565,7 +565,7 @@ class TuyaBLEDevice:
             await asyncio.sleep(0.01)
             if self._client and self._client.is_connected and self._is_paired:
                 return
-            attempts_count = 100
+            attempts_count = connection_attempts(self.product_id)
             while attempts_count > 0:
                 attempts_count -= 1
                 if attempts_count == 0:
@@ -625,12 +625,17 @@ class TuyaBLEDevice:
                     continue
 
                 if self._client and self._client.is_connected:
+                    payload = device_info_payload(self.product_id)
                     _LOGGER.debug(
-                        "%s: Sending device info request", self.address)
+                        "%s: Sending device info request (protocol=%s, payload=%s)",
+                        self.address,
+                        self._protocol_version,
+                        payload.hex(),
+                    )
                     try:
                         if not await self._send_packet_while_connected(
                             TuyaBLECode.FUN_SENDER_DEVICE_INFO,
-                            device_info_payload(self.product_id),
+                            payload,
                             0,
                             True,
                         ):
@@ -961,7 +966,8 @@ class TuyaBLEDevice:
 
     async def _int_send_packets_locked(self, packets: list[bytes]) -> None:
         """Execute command and read response."""
-        for packet in packets:
+        delay = packet_write_delay(self.product_id)
+        for index, packet in enumerate(packets):
             if self._client:
                 try:
                     # _LOGGER.debug("%s: Sending packet: %s", self.address, packet.hex())
@@ -970,6 +976,8 @@ class TuyaBLEDevice:
                         packet,
                         False,
                     )
+                    if delay and index < len(packets) - 1:
+                        await asyncio.sleep(delay)
                 except:
                     _LOGGER.error(
                         "%s: Error during sending packet",
