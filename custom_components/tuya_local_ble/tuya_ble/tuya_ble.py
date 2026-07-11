@@ -42,7 +42,6 @@ from .exceptions import (
 from .handshake import (
     connection_attempts,
     device_info_payload,
-    device_info_protocol_version,
     packet_write_delay,
     response_wait_timeout,
 )
@@ -586,12 +585,8 @@ class TuyaBLEDevice:
             await asyncio.sleep(0.01)
             if self._client and self._client.is_connected and self._is_paired:
                 return
-            advertised_protocol_version = self._protocol_version
             max_attempts = connection_attempts(self.product_id)
-            for attempt in range(max_attempts):
-                self._protocol_version = device_info_protocol_version(
-                    self.product_id, advertised_protocol_version, attempt
-                )
+            for _ in range(max_attempts):
                 try:
                     async with global_connect_lock:
                         _LOGGER.debug(
