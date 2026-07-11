@@ -40,8 +40,9 @@ from .exceptions import (
     TuyaBLEEnumValueError,
 )
 from .handshake import (
+    STANDARD as STANDARD_HANDSHAKE,
     connection_attempts,
-    device_info_payload,
+    handshake_variant,
     packet_write_delay,
     response_wait_timeout,
 )
@@ -240,6 +241,8 @@ class TuyaBLEDevice:
         self._is_bound = False
         self._flags = 0
         self._protocol_version = 2
+        self._handshake = STANDARD_HANDSHAKE
+        self._uuid: str = ""
 
         self._device_version: str = ""
         self._protocol_version_str: str = ""
@@ -274,7 +277,17 @@ class TuyaBLEDevice:
         _LOGGER.debug("%s: Initializing", self.address)
         if await self._update_device_info():
             self._decode_advertisement_data()
-            
+            if self._uuid and self._uuid != self._device_info.uuid:
+                # A silent handshake also looks like this when the login key
+                # belongs to a different device, so compare what it advertises.
+                _LOGGER.warning(
+                    "%s: advertised UUID %s does not match the configured UUID"
+                    " %s, the credentials belong to another device",
+                    self.address,
+                    self._uuid,
+                    self._device_info.uuid,
+                )
+
     def _build_pairing_request(self) -> bytes:
         result = bytearray()
 
@@ -586,7 +599,8 @@ class TuyaBLEDevice:
             if self._client and self._client.is_connected and self._is_paired:
                 return
             max_attempts = connection_attempts(self.product_id)
-            for _ in range(max_attempts):
+            for attempt in range(max_attempts):
+                self._handshake = handshake_variant(self.product_id, attempt)
                 try:
                     async with global_connect_lock:
                         _LOGGER.debug(
@@ -622,6 +636,14 @@ class TuyaBLEDevice:
                     _LOGGER.debug("%s: Connected; RSSI: %s",
                                   self.address, self.rssi)
                     self._client = client
+                    for service in client.services:
+                        for char in service.characteristics:
+                            _LOGGER.debug(
+                                "%s: GATT characteristic %s properties %s",
+                                self.address,
+                                char.uuid,
+                                char.properties,
+                            )
                     try:
                         await self._client.start_notify(
                             CHARACTERISTIC_NOTIFY,
@@ -637,17 +659,18 @@ class TuyaBLEDevice:
                     continue
 
                 if self._client and self._client.is_connected:
-                    payload = device_info_payload(self.product_id)
                     _LOGGER.debug(
-                        "%s: Sending device info request (protocol=%s, payload=%s)",
+                        "%s: Sending device info request "
+                        "(attempt=%s, advertised protocol=%s, %s)",
                         self.address,
+                        attempt,
                         self._protocol_version,
-                        payload.hex(),
+                        self._handshake.describe(),
                     )
                     try:
                         if not await self._send_packet_while_connected(
                             TuyaBLECode.FUN_SENDER_DEVICE_INFO,
-                            payload,
+                            self._handshake.payload,
                             0,
                             True,
                         ):
@@ -665,6 +688,11 @@ class TuyaBLEDevice:
                         _LOGGER.error("%s: Sending device info request failed",
                                       self.address, exc_info=True)
                         continue
+                    _LOGGER.info(
+                        "%s: Device info request accepted (%s)",
+                        self.address,
+                        self._handshake.describe(),
+                    )
                 else:
                     continue
 
@@ -815,17 +843,19 @@ class TuyaBLEDevice:
             packet = bytearray()
             packet += self._pack_int(packet_num)
 
+            is_device_info = code == TuyaBLECode.FUN_SENDER_DEVICE_INFO
+
             if packet_num == 0:
                 packet += self._pack_int(length)
                 packet_protocol_version = self._protocol_version
-                if code == TuyaBLECode.FUN_SENDER_DEVICE_INFO and self.product_id == "hc7n0urm":
-                    packet_protocol_version = 2
+                if is_device_info and self._handshake.header_version:
+                    packet_protocol_version = self._handshake.header_version
                 packet += pack(">B", packet_protocol_version << 4)
 
             chunk_mtu = GATT_MTU
-            if code == TuyaBLECode.FUN_SENDER_DEVICE_INFO and self.product_id == "hc7n0urm":
-                # TuyaOS FD50 locks use MTU exchange and expect DEVICE_INFO in one write.
-                chunk_mtu = 244
+            if is_device_info:
+                # TuyaOS locks negotiate the MTU and expect DEVICE_INFO in one write.
+                chunk_mtu = self._handshake.chunk_mtu
             data_part = encrypted[
                 pos:pos + chunk_mtu - len(packet)  # fmt: skip
             ]
@@ -990,9 +1020,22 @@ class TuyaBLEDevice:
                 asyncio.create_task(self._reconnect())
             raise
 
+    def _write_needs_response(self) -> bool:
+        """Return whether the write characteristic requires a response."""
+        if self._handshake.write_with_response:
+            return True
+        if self._client is None:
+            return False
+        char = self._client.services.get_characteristic(CHARACTERISTIC_WRITE)
+        if char is None:
+            return False
+        # A device that only exposes "write" silently drops write commands.
+        return "write-without-response" not in char.properties
+
     async def _int_send_packets_locked(self, packets: list[bytes]) -> None:
         """Execute command and read response."""
         delay = packet_write_delay(self.product_id)
+        with_response = self._write_needs_response()
         for index, packet in enumerate(packets):
             if self._client:
                 try:
@@ -1000,7 +1043,7 @@ class TuyaBLEDevice:
                     await self._client.write_gatt_char(
                         CHARACTERISTIC_WRITE,
                         packet,
-                        False,
+                        with_response,
                     )
                     if delay and index < len(packets) - 1:
                         await asyncio.sleep(delay)

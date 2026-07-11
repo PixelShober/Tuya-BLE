@@ -30,17 +30,31 @@ Reference: [Tuya Bluetooth lock data point reference](https://developer.tuya.com
 
 ## Connection status
 
-The advertised protocol marker is V3. Live tests through an ESPHome Bluetooth
-proxy confirmed that the lock accepts a GATT connection at about `-74 dBm`.
-The product-specific `DEVICE_INFO` request uses the login key, payload `00 14`,
-and a 50 ms delay between fragmented writes. Connected response waits are
-limited to eight seconds and initial setup stops after three attempts.
+The lock never answers a `DEVICE_INFO` request. Setup therefore fails with
+`timeout receiving response` on every attempt and the config entry stays in
+`setup_error`. Waking the lock by pressing its keypad during setup does not
+change this.
 
-An untouched, sleeping lock accepted the GATT connection but did not send a
-protocol notification in response. A supervised test with the keypad or
-fingerprint sensor awake is still required before battery data or commands can
-be validated. A V4 frame-header probe also received no response and was not
-retained.
+What the live tests through an ESPHome Bluetooth proxy have established:
+
+- The GATT connection is accepted at about `-72 dBm`, and the lock exposes the
+  standard Tuya profile: `2b10` (`notify`) and `2b11` (`write-without-response`,
+  `write`). Subscribing to notifications succeeds.
+- The request is written, no notification of any kind arrives, and the lock
+  drops the connection a few seconds later.
+- The framing is not the cause. Payload (empty and `00 14`), header protocol
+  version (advertised V3 and V2) and fragment size (20-byte ATT default and a
+  single 244-byte write) were probed in every combination against the hardware.
+  All six timed out identically.
+- The advertisement carries service data for `0000a201` but no Tuya
+  manufacturer data, so the bind flag and the encrypted device UUID cannot
+  always be read from it.
+
+The request is very likely dropped before it is ever processed. The next probe
+writes with a response so that the lock has to report an ATT error instead of
+staying silent; an authentication or encryption error there would mean the lock
+requires a bonded link, which an ESPHome proxy cannot provide. A wrong login key
+would produce the same silence, so the credentials remain a suspect as well.
 
 ## Required `devices.json` fields
 
