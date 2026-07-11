@@ -57,12 +57,27 @@ What the live tests through an ESPHome Bluetooth proxy have established:
 
 Everything below the Tuya protocol layer therefore works: the link, the
 characteristics, the write and the subscription. The lock receives a
-well-formed frame, acknowledges it, and refuses to act on it. The most likely
-remaining cause is that it cannot decrypt the request, which happens when the
-`local_key` in `devices.json` is not the key of this lock. The key cannot be
-verified against the Home Assistant cloud entries, because a BLE-only lock does
-not appear there. Re-exporting the credentials from the Tuya IoT platform and
-comparing them with `devices.json` is the next step.
+well-formed frame, acknowledges it, and refuses to act on it.
+
+The credentials are also confirmed correct. The `local_key`, `uuid`
+(`node_id`) and `device_id` in `devices.json` were compared byte for byte
+against the Tuya IoT cloud record for this device and match exactly, and the
+cloud MAC matches the advertised address. A wrong login key is therefore ruled
+out, so the request the lock ignores is both well-framed and correctly
+encrypted.
+
+What this leaves:
+
+- The subscription may not deliver notifications through this ESPHome proxy at
+  all. Nothing has ever confirmed a notification arriving from this lock, so the
+  next step is to prove the notify path works (any inbound frame), independently
+  of the handshake.
+- The `jtmspro` door-lock firmware may not use the standard `DEVICE_INFO`
+  handshake and may expect the accessory pairing flow (DP 70) or a wake/hello
+  sequence first.
+- The cloud shows the lock as `online: false` with `residual_electricity: 62`,
+  so it is a healthy BLE-only device with no always-on gateway; its radio only
+  wakes for a short window on physical interaction.
 
 ## Deployment trap
 
