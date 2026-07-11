@@ -50,11 +50,28 @@ What the live tests through an ESPHome Bluetooth proxy have established:
   manufacturer data, so the bind flag and the encrypted device UUID cannot
   always be read from it.
 
-The request is very likely dropped before it is ever processed. The next probe
-writes with a response so that the lock has to report an ATT error instead of
-staying silent; an authentication or encryption error there would mean the lock
-requires a bonded link, which an ESPHome proxy cannot provide. A wrong login key
-would produce the same silence, so the credentials remain a suspect as well.
+- Writing the request with a response, so that the lock has to acknowledge or
+  reject it at the ATT layer, produced no error. The lock accepts the bytes and
+  then ignores them, so it does not require a bonded link and the ESPHome proxy
+  is not the limitation.
+
+Everything below the Tuya protocol layer therefore works: the link, the
+characteristics, the write and the subscription. The lock receives a
+well-formed frame, acknowledges it, and refuses to act on it. The most likely
+remaining cause is that it cannot decrypt the request, which happens when the
+`local_key` in `devices.json` is not the key of this lock. The key cannot be
+verified against the Home Assistant cloud entries, because a BLE-only lock does
+not appear there. Re-exporting the credentials from the Tuya IoT platform and
+comparing them with `devices.json` is the next step.
+
+## Deployment trap
+
+The integration is installed through HACS from `PixelShober/Tuya-BLE`, and the
+GJ-635 work only exists locally. Any HACS download of the repository replaces
+`/config/custom_components/tuya_local_ble` with the published branch and removes
+`handshake.py` and `lock_protocol.py`. This happened once mid-test and made a
+probe run report results from the upstream code. Re-deploy the working tree
+after any HACS action, or push the branch before relying on HACS.
 
 ## Required `devices.json` fields
 
