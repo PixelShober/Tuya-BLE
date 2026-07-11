@@ -111,3 +111,28 @@ which is the one thing guesswork cannot give us.
 
 When you are done, set **Enable Bluetooth HCI snoop log** back to **Disabled**
 and toggle Bluetooth once, so the phone stops logging all BLE traffic.
+
+## Result 2026-07-11: Samsung bugreport is not enough
+
+Both the on-device "Bug report" and `adb bugreport` on this Samsung phone
+(bootloader locked, `verifiedbootstate green`, no working `su`) only include
+`FS/data/log/bt/btsnooz_hci.log`, never the full `btsnoop_hci.log`. `btsnooz`
+is a lossy ring-buffer snapshot: decoding it (8-byte records
+`len16 LE / ts32 LE / type16 LE`, then `len` bytes, `0x20`=command `0x10`=event)
+gave 817 packets that are **all HCI commands and events, zero ACL data**. The
+lock MAC does appear in the LE-meta connection events, so the app did connect —
+but the GATT writes and notifications we need ride in ACL payloads, which
+`btsnooz` drops. The full `btsnoop_hci.log` (with ACL) lives at
+`/data/misc/bluetooth/logs/` and is root-only; a locked Samsung will not give it
+up through a bugreport.
+
+Working alternatives to get the ATT data:
+
+- **External BLE sniffer** (nRF52840 dongle + nRF Sniffer for Bluetooth LE +
+  Wireshark): capture the app↔lock connection over the air. The ATT writes are
+  the Tuya frames; they are AES-encrypted with `md5(local_key[:6])`, which we
+  have, so they can be decrypted after capture. Most reliable.
+- **A rootable / already-rooted Android**: pull
+  `/data/misc/bluetooth/logs/btsnoop_hci.log` directly after reproducing.
+- **Samsung `*#9900#` SysDump**: may export a fuller BT log on some models;
+  unverified here.
