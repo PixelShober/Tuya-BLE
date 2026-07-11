@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import os
 import secrets
 import time
 from collections.abc import Callable
@@ -655,6 +656,8 @@ class TuyaBLEDevice:
                         _LOGGER.error("%s: starting notifications failed",
                                       self.address, exc_info=True)
                         continue
+
+                    await self._maybe_notify_probe()
                 else:
                     continue
 
@@ -1019,6 +1022,29 @@ class TuyaBLEDevice:
             else:
                 asyncio.create_task(self._reconnect())
             raise
+
+    async def _maybe_notify_probe(self) -> None:
+        """Hold the subscription open and log any inbound notification.
+
+        Diagnostic only: drop a file named ``notify_probe`` next to
+        ``devices.json`` to make a connected device listen for ~90 s before the
+        handshake. Operate the lock physically during that window; any frame the
+        lock emits is logged by the notification handler as "Packet received".
+        Silence means the notify path itself is broken, not the handshake.
+        """
+        # ponytail: marker file over a config-flow option; delete it when done.
+        if not os.path.exists("/config/tuya_local_ble/notify_probe"):
+            return
+        _LOGGER.warning(
+            "%s: notify probe active, listening 90 s for any notification; "
+            "operate the lock now (keypad or manual unlock)",
+            self.address,
+        )
+        try:
+            await asyncio.sleep(90)
+        except asyncio.CancelledError:
+            raise
+        _LOGGER.warning("%s: notify probe window ended", self.address)
 
     def _write_needs_response(self) -> bool:
         """Return whether the write characteristic requires a response."""
