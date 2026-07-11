@@ -38,6 +38,18 @@ class DeviceInfoPayloadTest(unittest.TestCase):
         self.assertEqual(handshake.connection_attempts("other"), 100)
         self.assertEqual(handshake.packet_write_delay("other"), 0)
 
+    def test_gj635_tries_v4_then_falls_back_to_advertised_version(self) -> None:
+        self.assertEqual(
+            handshake.device_info_protocol_version("laxpwq3g", 3, 0), 4
+        )
+        self.assertEqual(
+            handshake.device_info_protocol_version("laxpwq3g", 3, 1), 3
+        )
+
+    def test_gj635_uses_short_connected_response_timeout(self) -> None:
+        self.assertEqual(handshake.response_wait_timeout("laxpwq3g", 60), 8)
+        self.assertEqual(handshake.response_wait_timeout("other", 60), 60)
+
 
 if __name__ == "__main__":
     unittest.main()

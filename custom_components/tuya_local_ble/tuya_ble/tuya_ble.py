@@ -39,7 +39,13 @@ from .exceptions import (
     TuyaBLEDeviceError,
     TuyaBLEEnumValueError,
 )
-from .handshake import connection_attempts, device_info_payload, packet_write_delay
+from .handshake import (
+    connection_attempts,
+    device_info_payload,
+    device_info_protocol_version,
+    packet_write_delay,
+    response_wait_timeout,
+)
 from .manager import AbstaractTuyaBLEDeviceManager, TuyaBLEDeviceCredentials
 
 _LOGGER = logging.getLogger(__name__)
@@ -546,6 +552,21 @@ class TuyaBLEDevice:
         async with self._seq_num_lock:
             self._current_seq_num = 1
 
+    async def _reset_failed_connection(self) -> None:
+        """Close a failed pre-pairing connection before retrying."""
+        client = self._client
+        self._client = None
+        if not client or not client.is_connected:
+            return
+        try:
+            await client.stop_notify(CHARACTERISTIC_NOTIFY)
+        except BLEAK_EXCEPTIONS:
+            pass
+        try:
+            await client.disconnect()
+        except BLEAK_EXCEPTIONS:
+            pass
+
     async def _ensure_connected(self) -> None:
         """Ensure connection to device is established."""
         global global_connect_lock
@@ -565,16 +586,12 @@ class TuyaBLEDevice:
             await asyncio.sleep(0.01)
             if self._client and self._client.is_connected and self._is_paired:
                 return
-            attempts_count = connection_attempts(self.product_id)
-            while attempts_count > 0:
-                attempts_count -= 1
-                if attempts_count == 0:
-                    _LOGGER.error(
-                        "%s: Connecting, all attempts failed; RSSI: %s",
-                        self.address,
-                        self.rssi,
-                    )
-                    raise BleakNotFoundError()
+            advertised_protocol_version = self._protocol_version
+            max_attempts = connection_attempts(self.product_id)
+            for attempt in range(max_attempts):
+                self._protocol_version = device_info_protocol_version(
+                    self.product_id, advertised_protocol_version, attempt
+                )
                 try:
                     async with global_connect_lock:
                         _LOGGER.debug(
@@ -639,7 +656,10 @@ class TuyaBLEDevice:
                             0,
                             True,
                         ):
-                            self._client = None
+                            if self.product_id == "laxpwq3g":
+                                await self._reset_failed_connection()
+                            else:
+                                self._client = None
                             _LOGGER.error(
                                 "%s: Sending device info request failed",
                                 self.address,
@@ -677,6 +697,14 @@ class TuyaBLEDevice:
                     continue
 
                 break
+            else:
+                _LOGGER.error(
+                    "%s: Connecting, all %s attempts failed; RSSI: %s",
+                    self.address,
+                    max_attempts,
+                    self.rssi,
+                )
+                raise BleakNotFoundError()
 
         if self._client:
             if self._client.is_connected:
@@ -881,7 +909,10 @@ class TuyaBLEDevice:
         await self._int_send_packet_while_connected(packets)
         if future:
             try:
-                await asyncio.wait_for(future, RESPONSE_WAIT_TIMEOUT)
+                await asyncio.wait_for(
+                    future,
+                    response_wait_timeout(self.product_id, RESPONSE_WAIT_TIMEOUT),
+                )
             except asyncio.TimeoutError:
                 _LOGGER.error(
                     "%s: timeout receiving response, RSSI: %s",
