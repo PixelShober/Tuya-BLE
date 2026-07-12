@@ -227,6 +227,9 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                         key="unlock_ble",
                         icon="mdi:lock-open-variant-outline",
                         entity_category=EntityCategory.DIAGNOSTIC,
+                        # Only briefly flips to 1 on a BLE open; not useful as a
+                        # live sensor, so keep it off by default (opt-in audit).
+                        entity_registry_enabled_default=False,
                     ),
                 ),
             ],
