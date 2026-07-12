@@ -12,6 +12,7 @@ import time
 from homeassistant.components.lock import (
     LockEntityDescription,
     LockEntity,
+    LockEntityFeature,
     LockState,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -60,6 +61,9 @@ class TuyaBLELockMapping:
     dp_type: TuyaBLEDataPointType | None = None
     is_available: TuyaBLELockIsAvailable = None
     command_builder: TuyaBLELockCommandBuilder | None = None
+    # Key safes only open (release the latch); they cannot be locked remotely
+    # and re-latch mechanically. Present them as open-only.
+    open_only: bool = False
 
 @dataclass
 class TuyaBLECategoryLockMapping:
@@ -112,6 +116,8 @@ mapping: dict[str, TuyaBLECategoryLockMapping] = {
                     keep_connect=False,
                     keep_connect_timer=60,
                     command_builder=_build_gj635_command,
+                    # GJ-635 is a key safe: it only opens, it does not lock.
+                    open_only=True,
                     description=LockEntityDescription(
                         key="manual_lock",
                         entity_registry_enabled_default=False,
@@ -151,6 +157,11 @@ class TuyaBLELock(TuyaBLEEntity, LockEntity):
         super().__init__(hass, coordinator, device, product, mapping.description)
         self._mapping = mapping
         self._current_state = STATE_UNKNOWN
+        if mapping.open_only:
+            # Offer an Open action; rest state is latched so the card shows
+            # Unlock/Open instead of a meaningless Lock action.
+            self._attr_supported_features = LockEntityFeature.OPEN
+            self._current_state = LockState.LOCKED
         self._target_state = None
         self._commanded = False
         self._commanded_timer = None
@@ -217,10 +228,22 @@ class TuyaBLELock(TuyaBLEEntity, LockEntity):
 
     async def async_lock(self, **kwargs: Any) -> None:
         """Lock the device."""
+        if self._mapping.open_only:
+            # A key safe cannot be latched remotely; it re-latches mechanically
+            # when closed. Ignore the lock command instead of sending a bogus one.
+            _LOGGER.debug(
+                "%s: lock command ignored (open-only key safe)",
+                self._device.address,
+            )
+            return
         await self._set_lock_state(LockState.LOCKED)
 
     async def async_unlock(self, **kwargs: Any) -> None:
         """Unlock the device."""
+        await self._set_lock_state(LockState.UNLOCKED)
+
+    async def async_open(self, **kwargs: Any) -> None:
+        """Open (release) the device — same command path as unlock."""
         await self._set_lock_state(LockState.UNLOCKED)
 
     async def _set_lock_state(self, state: str) -> None:
