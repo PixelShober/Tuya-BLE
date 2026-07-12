@@ -10,9 +10,13 @@
     "step": {
       "device": {
         "data": {
-          "address": "Tuya BLE device"
+          "address": "Tuya BLE device",
+          "name": "Name (optional)"
         },
-        "description": "Select Tuya BLE device to setup. Device must be registered in the cloud using the mobile application. It's better to unbind the device from Tuya Bluetooth gateway, if any."
+        "description": "Select Tuya BLE device to setup. Device must be registered in the cloud using the mobile application. It's better to unbind the device from Tuya Bluetooth gateway, if any.",
+        "data_description": {
+          "name": "Leave empty to use the device default name; you can rename it later in device settings."
+        }
       }
     }
   },

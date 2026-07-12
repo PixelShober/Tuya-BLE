@@ -15,7 +15,7 @@ from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
 )
-from homeassistant.const import CONF_ADDRESS
+from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.core import callback
 #from homeassistant.data_entry_flow import FlowResult
 
@@ -83,8 +83,9 @@ class TuyaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._get_device_info_error = True
                 errors["base"] = "device_not_registered"
             else:
+                custom_name = (user_input.get(CONF_NAME) or "").strip()
                 return self.async_create_entry(
-                    title=local_name,
+                    title=custom_name or local_name,
                     data={CONF_ADDRESS: discovery_info.address},
                     options=self._data,
                 )
@@ -128,6 +129,7 @@ class TuyaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
                             for service_info in self._discovered_devices.values()
                         }
                     ),
+                    vol.Optional(CONF_NAME): str,
                 },
             ),
             errors=errors,
