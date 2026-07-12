@@ -387,7 +387,8 @@ def get_device_info(device: TuyaBLEDevice) -> DeviceInfo | None:
             device.product_model or product_name,
             device.product_id,
         ),
-        name=("%s %s")
+        name=device.custom_name
+        or ("%s %s")
         % (
             product_name,
             get_short_address(device.address),

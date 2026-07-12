@@ -53,6 +53,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ble_device,
         service_info.advertisement if service_info is not None else None,
     )
+    # The entry title is the name the user chose in the setup flow (or the
+    # auto-generated default); use it as the device name so entities inherit it.
+    device.custom_name = entry.title
     await device.initialize()
     product_info = get_device_product_info(device)
 

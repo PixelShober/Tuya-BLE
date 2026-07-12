@@ -245,6 +245,8 @@ class TuyaBLEDevice:
         self._protocol_version = 2
         self._handshake = STANDARD_HANDSHAKE
         self._uuid: str = ""
+        # User-chosen name from the config entry; overrides the device-info name.
+        self.custom_name: str | None = None
 
         self._device_version: str = ""
         self._protocol_version_str: str = ""
