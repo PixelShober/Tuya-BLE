@@ -53,6 +53,10 @@ class TuyaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._manager is None:
             self._manager = HASSTuyaBLEDeviceManager(self.hass, self._data)
         #await self._manager.build_cache()
+        # Don't spam a discovery card for Tuya BLE devices we have no credentials
+        # for — the flow could never complete for them anyway.
+        if await self._manager.get_device_credentials(discovery_info.address) is None:
+            return self.async_abort(reason="no_credentials")
         self.context["title_placeholders"] = {
             "name": await get_device_readable_name(
                 discovery_info,

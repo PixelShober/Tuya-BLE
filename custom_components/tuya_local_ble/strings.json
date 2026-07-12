@@ -1,7 +1,8 @@
 {
   "config": {
     "abort": {
-      "no_unconfigured_devices": "No unconfigured devices found."
+      "no_unconfigured_devices": "No unconfigured devices found.",
+      "no_credentials": "No credentials for this Tuya BLE device; nothing to configure."
     },
     "error": {
       "device_not_registered": "Device is not registered, please check config."
