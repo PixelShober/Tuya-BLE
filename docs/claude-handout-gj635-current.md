@@ -10,9 +10,19 @@ device-specific DP 71 command bytes in committed files or chat summaries.
 
 ## Current status
 
-- Latest local commit: `7f595fb Handle padded Tuya BLE notification fragments`.
-- Previous key commit: `c0af021 Fix GJ-635 handshake: real BLE secret goes in devices.json local_key`.
-- QA Home Assistant at `192.168.178.181` loaded the config entry successfully.
+- Latest local commit: `a4a9b62 Quiet recoverable notification reassembly artifacts`.
+- Key commits: `7f595fb` (padded fragments), `c0af021` (real BLE secret in
+  devices.json local_key), `a4a9b62` (reassembly noise → debug).
+- QA `192.168.178.181`: config entry `loaded`, and on 2026-07-12 during a
+  supervised operation **battery DP 8 was read live at 73%** over the local BLE
+  session (also DP 13 and DP 69 parsed cleanly). Notification error spam is gone
+  from the system log after `a4a9b62`.
+- DP 19 (bluetooth unlock record) still `unknown` — needs a real BLE unlock
+  event, not just manual operation.
+- `ble_unlock_check` (for `lock_control`) NOT yet added to QA. Best source is the
+  prod `devices.json`, but prod SSH `192.168.178.165` is currently blocked
+  (Bitwarden agent locked → `Permission denied (publickey)`). Decoding it from
+  `captures/btfull.log` with the recovered session key is the fallback.
 - Prod/live Home Assistant at `192.168.178.165` was only inspected and should
   not be changed until QA proves the full lock path.
 - QA config entry: `GJ-635APP+KEY 0236FF`, entry id
