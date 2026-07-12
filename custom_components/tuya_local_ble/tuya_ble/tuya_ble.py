@@ -40,6 +40,7 @@ from .exceptions import (
     TuyaBLEDeviceError,
     TuyaBLEEnumValueError,
 )
+from .fragment import append_fragment_payload
 from .handshake import (
     STANDARD as STANDARD_HANDSHAKE,
     connection_attempts,
@@ -1578,7 +1579,18 @@ class TuyaBLEDevice:
                 self._input_buffer = bytearray()
                 self._input_expected_length, pos = self._unpack_int(data, pos)
                 pos += 1
-            self._input_buffer += data[pos:]
+            padding = append_fragment_payload(
+                self._input_buffer,
+                data[pos:],
+                self._input_expected_length,
+            )
+            if padding:
+                _LOGGER.debug(
+                    "%s: Ignoring %s padding byte(s) after notification frame: %s",
+                    self.address,
+                    len(padding),
+                    padding.hex(),
+                )
             self._input_expected_packet_num += 1
         else:
             _LOGGER.error(
@@ -1590,17 +1602,7 @@ class TuyaBLEDevice:
             self._clean_input()
             return
 
-        if len(self._input_buffer) > self._input_expected_length:
-            _LOGGER.error(
-                "%s: Unexpcted length of data in notifications, "
-                "received %s expected %s",
-                self.address,
-                len(self._input_buffer),
-                self._input_expected_length,
-            )
-            self._clean_input()
-            return
-        elif len(self._input_buffer) == self._input_expected_length:
+        if len(self._input_buffer) == self._input_expected_length:
             self._parse_input()
 
     async def _send_datapoints_v3(self, datapoint_ids: list[int]) -> None:

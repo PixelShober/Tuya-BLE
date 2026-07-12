@@ -93,10 +93,19 @@ is stored only in `devices.json` (gitignored), never committed.
 With the corrected `local_key`, a live test on a Home Assistant instance with an
 ESPHome Bluetooth proxy in range took the config entry from `setup_error` to
 `loaded`: the lock now accepts our `DEVICE_INFO`, the session establishes, and
-it replies with session-key-encrypted (`security_flag 0x05`) frames. Remaining
-polish: notification reassembly of some status frames over the proxy is still
-being tuned (battery DP not yet populating), but the local BLE session itself
-works.
+it replies with session-key-encrypted (`security_flag 0x05`) frames.
+
+Notification reassembly was also corrected for locks that pad the final ATT
+notification beyond the encrypted frame length declared in fragment zero. A
+live QA run then reassembled and parsed DP 69 successfully. Battery can still
+remain `unknown` after setup because this firmware does not send DP 8 on every
+connection; it populated as 73 in the Smart Life capture only after an unlock
+sequence caused the lock to push it.
+
+The lock entity is disabled by default as a deliberate safety measure. If a
+user enables it, it remains unavailable until the device-specific DP 71 status
+value is stored as `ble_unlock_check` in `devices.json`; the BLE login secret
+alone is not enough to construct an authenticated lock command.
 
 ## Reproduce the decode
 
