@@ -1566,12 +1566,24 @@ class TuyaBLEDevice:
         packet_num, pos = self._unpack_int(data, pos)
 
         if packet_num < self._input_expected_packet_num:
-            _LOGGER.error(
-                "%s: Unexpcted packet (number %s) in notifications, " "expected %s",
-                self.address,
-                packet_num,
-                self._input_expected_packet_num,
-            )
+            if packet_num == 0:
+                # A fresh frame starts before the previous one finished: the
+                # lock abandoned it, or a notification fragment was dropped by
+                # the BLE proxy. Recoverable transport artifact, not an error —
+                # restart reassembly on this new frame.
+                _LOGGER.debug(
+                    "%s: New notification frame started before the previous "
+                    "one completed; restarting reassembly",
+                    self.address,
+                )
+            else:
+                _LOGGER.error(
+                    "%s: Unexpcted packet (number %s) in notifications, "
+                    "expected %s",
+                    self.address,
+                    packet_num,
+                    self._input_expected_packet_num,
+                )
             self._clean_input()
 
         if packet_num == self._input_expected_packet_num:
@@ -1593,8 +1605,11 @@ class TuyaBLEDevice:
                 )
             self._input_expected_packet_num += 1
         else:
-            _LOGGER.error(
-                "%s: Missing packet (number %s) in notifications, received %s",
+            # A fragment gap (dropped notification). Recoverable: drop the
+            # partial frame and wait for the next one to start at zero.
+            _LOGGER.debug(
+                "%s: Missing packet (expected %s) in notifications, received %s;"
+                " restarting reassembly",
                 self.address,
                 self._input_expected_packet_num,
                 packet_num,
