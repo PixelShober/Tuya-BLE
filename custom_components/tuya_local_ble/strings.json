@@ -20,6 +20,9 @@
     "button": {
       "push": {
         "name": "Push"
+      },
+      "open_door": {
+        "name": "Open door"
       }
     },
     "number": {
@@ -74,12 +77,11 @@
         }
       },
       "beep_volume": {
-          "name": "Lock Volume"
+        "name": "Lock Volume"
       },
       "lock_direction": {
         "name": "Lock Direction"
       }
-
     },
     "binary_sensor": {
       "low_battery": {
@@ -132,30 +134,30 @@
         "name": "Water intake"
       },
       "residual_electricity": {
-          "name": "Battery"
+        "name": "Battery"
       },
       "unlock_ble": {
-          "name": "Bluetooth unlock record"
+        "name": "Bluetooth unlock record"
       },
       "alarm_lock": {
-          "name": "Alarm"
+        "name": "Alarm"
       },
       "wrong_finger": {
-          "name": "Wrong Fingerprint"
+        "name": "Wrong Fingerprint"
       },
       "wrong_password": {
-          "name": "Wrong Password"
+        "name": "Wrong Password"
       },
       "low_battery": {
-          "name": "Low Battery"
+        "name": "Low Battery"
       },
       "time_left": {
-          "name": "Remaining irrigation time"
+        "name": "Remaining irrigation time"
       }
     },
     "switch": {
       "programming_mode": {
-        "name": "Programming Mode" 
+        "name": "Programming Mode"
       },
       "programming_switch": {
         "name": "Programming Switch"
@@ -189,7 +191,7 @@
       },
       "program_repeat_forever": {
         "name": "Repeat forever"
-      },      
+      },
       "reverse_positions": {
         "name": "Reverse positions"
       },
@@ -198,10 +200,10 @@
       },
       "lock_motor_state": {
         "name": "Motor State"
-      },      
+      },
       "water_valve": {
-          "name": "Irrigation valve"
-      }    
+        "name": "Irrigation valve"
+      }
     },
     "lock": {
       "manual_lock": {

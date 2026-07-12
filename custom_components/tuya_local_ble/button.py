@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN
 from .devices import TuyaBLEData, TuyaBLEEntity, TuyaBLEProductInfo
+from .lock_protocol import build_accessory_lock_payload
 from .tuya_ble import TuyaBLEDataPointType, TuyaBLEDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,6 +33,9 @@ class TuyaBLEButtonMapping:
     force_add: bool = True
     dp_type: TuyaBLEDataPointType | None = None
     is_available: TuyaBLEButtonIsAvailable = None
+    # Key safe: pressing sends the DT_RAW open command built from
+    # ble_unlock_check instead of toggling a boolean datapoint.
+    open_key_safe: bool = False
 
 
 def is_fingerbot_in_push_mode(self: TuyaBLEButton, product: TuyaBLEProductInfo) -> bool:
@@ -69,6 +73,20 @@ class TuyaBLECategoryButtonMapping:
 
 
 mapping: dict[str, TuyaBLECategoryButtonMapping] = {
+    "jtmspro": TuyaBLECategoryButtonMapping(
+        products={
+            "laxpwq3g": [  # GJ-635APP+KEY key safe: momentary open, no state
+                TuyaBLEButtonMapping(
+                    dp_id=71,
+                    open_key_safe=True,
+                    description=ButtonEntityDescription(
+                        key="open_door",
+                        translation_key="open_door",
+                    ),
+                ),
+            ],
+        },
+    ),
     "szjqr": TuyaBLECategoryButtonMapping(
         products={
             **dict.fromkeys(
@@ -150,6 +168,26 @@ class TuyaBLEButton(TuyaBLEEntity, ButtonEntity):
 
     def press(self) -> None:
         """Press the button."""
+        if self._mapping.open_key_safe:
+            try:
+                payload = build_accessory_lock_payload(
+                    self._device.ble_unlock_check, unlock=True
+                )
+            except ValueError as exc:
+                _LOGGER.error(
+                    "%s: cannot build open command: %s",
+                    self._device.address,
+                    exc,
+                )
+                return
+            datapoint = self._device.datapoints.get_or_create(
+                self._mapping.dp_id,
+                TuyaBLEDataPointType.DT_RAW,
+                b"",
+            )
+            self._hass.create_task(datapoint.set_value(payload))
+            return
+
         datapoint = self._device.datapoints.get_or_create(
             self._mapping.dp_id,
             TuyaBLEDataPointType.DT_BOOL,
@@ -162,6 +200,8 @@ class TuyaBLEButton(TuyaBLEEntity, ButtonEntity):
     def available(self) -> bool:
         """Return if entity is available."""
         result = super().available
+        if self._mapping.open_key_safe:
+            return result and bool(self._device.ble_unlock_check)
         if result and self._mapping.is_available:
             result = self._mapping.is_available(self, self._product)
         return result

@@ -106,24 +106,9 @@ mapping: dict[str, TuyaBLECategoryLockMapping] = {
                     ),
                 ),
             ],
-            "laxpwq3g": [  # GJ-635APP+KEY
-                TuyaBLELockMapping(
-                    dp_id_unlock=71,
-                    dp_id_lock=71,
-                    # DP 19 is an unlock event, not a persistent lock state.
-                    dp_id=19,
-                    dp_id_nop=70,
-                    keep_connect=False,
-                    keep_connect_timer=60,
-                    command_builder=_build_gj635_command,
-                    # GJ-635 is a key safe: it only opens, it does not lock.
-                    open_only=True,
-                    description=LockEntityDescription(
-                        key="manual_lock",
-                        entity_registry_enabled_default=False,
-                    ),
-                ),
-            ],
+            # GJ-635APP+KEY (laxpwq3g) is a key safe: it only opens and has no
+            # closed/latched state to report, so it is a button (button.py),
+            # not a lock entity.
         }
     ), 
 }
