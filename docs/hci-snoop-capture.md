@@ -6,7 +6,7 @@ Everything the integration needs is in that capture.
 
 Target for reference while reading the log:
 
-- Lock MAC: `DC:23:52:02:36:FF`
+- Lock MAC: `XX:XX:XX:XX:XX:XX`
 - Service: `0000a201-0000-1000-8000-00805f9b34fb`
 - Write characteristic (app → lock): `00002b11-...`
 - Notify characteristic (lock → app): `00002b10-...`
@@ -95,7 +95,7 @@ traffic; the credentials in it are already known to us, but it stays out of git.
 
 ## What I do with it
 
-I load it in Wireshark / a btsnoop parser, filter to `DC:23:52:02:36:FF`, and
+I load it in Wireshark / a btsnoop parser, filter to `XX:XX:XX:XX:XX:XX`, and
 read:
 
 - the exact bytes the app writes to `2b11` for its first `DEVICE_INFO`-style

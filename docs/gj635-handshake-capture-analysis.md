@@ -1,7 +1,7 @@
 # GJ-635 (`laxpwq3g`) — decoded BLE handshake, root cause
 
 Capture: full `btsnoop_hci.log` (with ACL) pulled from a rooted Android running
-the Smart Life app, connection handle `0x0041` to `DC:23:52:02:36:FF`. Decoded
+the Smart Life app, connection handle `0x0041` to `XX:XX:XX:XX:XX:XX`. Decoded
 with tshark + a pycryptodome script. This is the real handshake the lock
 accepts, versus the one our integration sends.
 
