@@ -36,15 +36,12 @@ _VARIANTS: dict[str, tuple[HandshakeVariant, ...]] = {
     "hc7n0urm": (
         HandshakeVariant(payload=b"\x00\xf3", header_version=2, chunk_mtu=244),
     ),
-    "laxpwq3g": (
-        HandshakeVariant(
-            payload=bytes(0),
-            header_version=None,
-            chunk_mtu=20,
-            write_with_response=True,
-        ),
-        STANDARD,
-    ),
+    # The lock speaks the standard Tuya BLE handshake once the login key is
+    # right. The real BLE secret is not the cloud local_key: capturing the
+    # Smart Life app showed local_key[:6] must be the device's own 6-byte key
+    # (put it in devices.json), after which the empty-payload standard flow with
+    # write-without-response works exactly like the app.
+    "laxpwq3g": (STANDARD,),
 }
 
 
@@ -59,8 +56,7 @@ def handshake_variant(product_id: str, attempt: int) -> HandshakeVariant:
 def connection_attempts(product_id: str) -> int:
     """Return the maximum initial connection attempts for a product."""
     if product_id == "laxpwq3g":
-        # One attempt per unprobed variant.
-        return max(3, len(_VARIANTS["laxpwq3g"]))
+        return 3
     return 100
 
 

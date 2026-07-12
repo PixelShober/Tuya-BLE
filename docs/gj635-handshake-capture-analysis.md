@@ -63,16 +63,40 @@ pre-handshake, and the `DEVICE_INFO` payload is encrypted with a key that is not
 ATT layer (it did in the earlier probes) and then silently ignores it — it
 cannot decrypt a frame that skipped the pre-handshake and used the wrong key.
 
-## What this means
+## SOLVED — the login key is a different secret than the cloud local_key
 
-The GJ-635 is not a standard Tuya BLE lock at the crypto layer. Making it work
-locally requires replicating the `0x001a`/`0x001d` challenge/response and the
-key it derives, which the packet capture alone does not reveal — it would need
-the algorithm from the Smart Life app (APK analysis) or Tuya's newer jtmspro BLE
-spec. That is a separate, substantial reverse-engineering effort.
+Hooking the Smart Life app with Frida (see `docs/frida-hook-setup.md`) while it
+unlocked over BLE captured the crypto in the Java layer. The decisive finding:
 
-Pragmatic alternative: control the lock through the Tuya cloud / a gateway,
-which works today with the verified credentials and needs none of this.
+- The app's `DEVICE_INFO` is a normal empty Tuya frame
+  (`00000001 00000000 0000 0000 <crc> 0000`) — identical to what we send.
+- The login key it uses is `md5(secret6)` where `secret6` is a device-specific
+  **6-byte BLE secret that is NOT the first six bytes of the cloud `local_key`**.
+  The captured PAIR request confirmed it: it carries `uuid` + `secret6` +
+  `device_id`, exactly where the protocol puts `local_key[:6]`.
+- The session key is `md5(secret6 + srand)`, `srand` taken from the
+  `DEVICE_INFO` response — which is exactly what this integration already does
+  with `local_key[:6]`.
+
+So no code change is needed for the crypto. The fix is to put the real BLE
+secret in `devices.json` as `local_key`, so that `local_key[:6]` equals
+`secret6`. The integration then derives the right login and session keys, builds
+the right PAIR request, and the handshake completes.
+
+Recovering `secret6` needs the Frida hook once per device (its origin — a
+separate cloud field vs. a transform of the cloud key — was not pinned down; the
+cloud `/v1.0/devices/{id}` `local_key` is a different value). The 6-byte secret
+is stored only in `devices.json` (gitignored), never committed.
+
+### Verified working
+
+With the corrected `local_key`, a live test on a Home Assistant instance with an
+ESPHome Bluetooth proxy in range took the config entry from `setup_error` to
+`loaded`: the lock now accepts our `DEVICE_INFO`, the session establishes, and
+it replies with session-key-encrypted (`security_flag 0x05`) frames. Remaining
+polish: notification reassembly of some status frames over the proxy is still
+being tuned (battery DP not yet populating), but the local BLE session itself
+works.
 
 ## Reproduce the decode
 
